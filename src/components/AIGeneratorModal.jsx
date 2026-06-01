@@ -19,13 +19,73 @@ const AIGeneratorModal = ({ onClose, onImageGenerated }) => {
     }
   };
 
-  // Converte o arquivo para Base64 (necessário para o Gemini)
-  const fileToBase64 = (file) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve(reader.result.split(',')[1]); // Pega apenas a string b64
-      reader.onerror = (error) => reject(error);
+  const processImageToLineArt = async (file) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Redimensionar para um tamanho razoável para o filtro
+        const MAX_WIDTH = 800;
+        let width = img.width;
+        let height = img.height;
+        if (width > MAX_WIDTH) {
+          height = Math.floor(height * (MAX_WIDTH / width));
+          width = MAX_WIDTH;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        
+        ctx.drawImage(img, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        
+        // 1. Converter para Tons de Cinza
+        const grayscale = new Uint8ClampedArray(width * height);
+        for (let i = 0; i < data.length; i += 4) {
+          grayscale[i / 4] = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+        }
+        
+        // 2. Filtro de Sobel (Detecção de Bordas)
+        const sobelData = new Uint8ClampedArray(data.length);
+        const kernelX = [-1, 0, 1, -2, 0, 2, -1, 0, 1];
+        const kernelY = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+        
+        for (let y = 1; y < height - 1; y++) {
+          for (let x = 1; x < width - 1; x++) {
+            let pixelX = 0;
+            let pixelY = 0;
+            
+            for (let ky = -1; ky <= 1; ky++) {
+              for (let kx = -1; kx <= 1; kx++) {
+                const pos = ((y + ky) * width + (x + kx));
+                const val = grayscale[pos];
+                const weightIdx = (ky + 1) * 3 + (kx + 1);
+                pixelX += val * kernelX[weightIdx];
+                pixelY += val * kernelY[weightIdx];
+              }
+            }
+            
+            const magnitude = Math.sqrt(pixelX * pixelX + pixelY * pixelY);
+            const idx = (y * width + x) * 4;
+            
+            // Threshold: Define o que é linha preta e o que é fundo branco
+            // Magnitudes maiores que 40 são consideradas "bordas" (linhas pretas)
+            const isEdge = magnitude > 40;
+            const color = isEdge ? 0 : 255;
+            
+            sobelData[idx] = color;     // R
+            sobelData[idx + 1] = color; // G
+            sobelData[idx + 2] = color; // B
+            sobelData[idx + 3] = 255;   // Alpha
+          }
+        }
+        
+        ctx.putImageData(new ImageData(sobelData, width, height), 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.src = URL.createObjectURL(file);
     });
   };
 
@@ -37,74 +97,19 @@ const AIGeneratorModal = ({ onClose, onImageGenerated }) => {
 
     setIsGenerating(true);
     setError('');
+    setLoadingText('Mapeando contornos da foto...');
 
     try {
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      if (!apiKey) {
-        throw new Error('Chave da API do Gemini não configurada!');
-      }
-
-      setLoadingText('A IA está analisando a sua foto...');
+      // Usamos um pequeno atraso para a UI poder mostrar o Loading
+      await new Promise(r => setTimeout(r, 500));
       
-      const base64Image = await fileToBase64(selectedFile);
-      const mimeType = selectedFile.type;
-
-      // 1. Chamar a API do Gemini 2.5 Flash para descrever a foto
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-      const geminiBody = {
-        contents: [{
-          parts: [
-            { text: "Describe the exact person in this image in high detail (gender, hair color/style, clothing, expression, accessories). Reply ONLY with the concise physical description in English." },
-            { inlineData: { mimeType, data: base64Image } }
-          ]
-        }]
-      };
-
-      const geminiResponse = await fetch(geminiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(geminiBody)
-      });
-
-      if (!geminiResponse.ok) {
-        const errorText = await geminiResponse.text();
-        console.error('Gemini API Error:', errorText);
-        throw new Error('Falha ao comunicar com o Gemini. Veja o console.');
-      }
-
-      const geminiData = await geminiResponse.json();
-      const description = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+      const lineArtUrl = await processImageToLineArt(selectedFile);
       
-      if (!description) {
-        throw new Error('O Gemini não conseguiu descrever a imagem.');
-      }
-
-      setLoadingText('Desenhando a versão Anime (pode levar 10 seg)...');
-
-      // 2. Chamar a API do Pollinations AI com o prompt combinado
-      const finalPrompt = `${description}, highly detailed k-pop anime style, coloring book page style, pure black clean line art outlines, pure white background, no shading, 2d flat vector style`;
-      const encodedPrompt = encodeURIComponent(finalPrompt);
-      const seed = Math.floor(Math.random() * 1000000);
-      
-      // Monta a URL mágica que gera a imagem na hora
-      const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?nologo=true&seed=${seed}&width=800&height=800`;
-      console.log("URL da imagem:", imageUrl);
-
-      // Fetch da imagem usando a API do Pollinations
-      const imageResponse = await fetch(imageUrl);
-      if (!imageResponse.ok) {
-        throw new Error(`Falha no Pollinations: ${imageResponse.status}`);
-      }
-      
-      const imageBlob = await imageResponse.blob();
-      const finalLocalUrl = URL.createObjectURL(imageBlob);
-
-      // Retorna a URL final (local) da IA para o Canvas
-      onImageGenerated(finalLocalUrl);
+      onImageGenerated(lineArtUrl);
       
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Erro inesperado ao gerar a arte com IA.');
+      setError('Erro ao processar a imagem.');
     } finally {
       setIsGenerating(false);
       setLoadingText('');
