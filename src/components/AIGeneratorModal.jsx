@@ -88,19 +88,19 @@ const AIGeneratorModal = ({ onClose, onImageGenerated }) => {
       
       // Monta a URL mágica que gera a imagem na hora
       const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?nologo=true&seed=${seed}&width=800&height=800`;
+      console.log("URL da imagem:", imageUrl);
 
-      // Pré-carrega a imagem para ter certeza que ela terminou de ser gerada antes de fechar o modal
-      const img = new Image();
-      img.crossOrigin = "Anonymous";
-      img.src = imageUrl;
+      // Fetch da imagem usando a API do Pollinations
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Falha no Pollinations: ${imageResponse.status}`);
+      }
       
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = () => reject(new Error('Falha ao gerar o desenho.'));
-      });
+      const imageBlob = await imageResponse.blob();
+      const finalLocalUrl = URL.createObjectURL(imageBlob);
 
-      // Retorna a URL final da IA para o Canvas
-      onImageGenerated(imageUrl);
+      // Retorna a URL final (local) da IA para o Canvas
+      onImageGenerated(finalLocalUrl);
       
     } catch (err) {
       console.error(err);
