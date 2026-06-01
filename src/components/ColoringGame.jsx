@@ -59,6 +59,7 @@ const ColoringGame = () => {
   useEffect(() => {
     // Load the SVG outline once or when it changes
     const img = new Image();
+    img.crossOrigin = "Anonymous";
     img.src = currentOutlineSrc;
     img.onload = () => {
       outlineImageRef.current = img;
@@ -352,6 +353,7 @@ const ColoringGame = () => {
             />
             {canvasSize.width > 0 && (
                 <img 
+                  crossOrigin="Anonymous"
                   src={currentOutlineSrc}
                   style={{
                     position: 'absolute',
