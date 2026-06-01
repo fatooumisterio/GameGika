@@ -49,8 +49,8 @@ const AIGeneratorModal = ({ onClose, onImageGenerated }) => {
       const base64Image = await fileToBase64(selectedFile);
       const mimeType = selectedFile.type;
 
-      // 1. Chamar a API do Gemini 1.5 Flash para descrever a foto
-      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      // 1. Chamar a API do Gemini 2.5 Flash para descrever a foto
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
       const geminiBody = {
         contents: [{
           parts: [
@@ -67,7 +67,9 @@ const AIGeneratorModal = ({ onClose, onImageGenerated }) => {
       });
 
       if (!geminiResponse.ok) {
-        throw new Error('Falha ao comunicar com o Gemini.');
+        const errorText = await geminiResponse.text();
+        console.error('Gemini API Error:', errorText);
+        throw new Error('Falha ao comunicar com o Gemini. Veja o console.');
       }
 
       const geminiData = await geminiResponse.json();
