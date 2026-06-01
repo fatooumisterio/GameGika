@@ -1,0 +1,38 @@
+:root {
+  --bg-color: #0f172a;
+  --text-color: #f8fafc;
+  --canvas-bg: #ffffff;
+  --primary: #3b82f6;
+  --panel-bg: #1e293b;
+  --border-color: #334155;
+  --accent: #f43f5e;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden; /* Prevent scrolling for a mobile game feel */
+  touch-action: none; /* Prevent pinch zoom and scroll on mobile canvas */
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-container {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
