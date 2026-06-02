@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">GameGika</string>
-    <string name="title_activity_main">GameGika</string>
-    <string name="package_name">com.gamegika.app</string>
-    <string name="custom_url_scheme">com.gamegika.app</string>
-</resources>
